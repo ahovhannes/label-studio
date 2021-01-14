@@ -431,9 +431,13 @@ def model_page():
 def version():
     """ Show LS backend and LS frontend versions
     """
-    lsf = json.load(open(find_dir('static/editor') + '/version.json'))
+    with open(find_dir('static/editor') + '/version.json') as f:
+        lsf = json.load(f)
+    with open(find_dir('static/dm') + '/version.json') as f:
+        dm = json.load(f)
     ver = {
         'label-studio-frontend': lsf,
+        'label-studio-datamanager': dm,
         'label-studio-backend': label_studio.__version__
     }
     return make_response(jsonify(ver), 200)
@@ -502,6 +506,7 @@ def api_project():
     if request.method == 'POST' and request.args.get('new', False):
         input_args.web_gui_project_desc = request.args.get('desc')
         g.project = project_get_or_create(multi_session_force_recreate=True)
+        delattr(input_args, 'web_gui_project_desc')  # remove it to avoid other users affecting
         code = 201
 
     # update project params, ml backend settings

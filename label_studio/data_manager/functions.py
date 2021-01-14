@@ -46,19 +46,18 @@ def get_all_columns(project):
     task_data_children = []
     i = 0
 
-    # TODO: make this part with data types from project working
     data_types = OrderedDict()
+    # add data types from config again
+    data_types.update(project.data_types.items())
     # all data types from import data
     if project.derived_all_input_schema:
         data_types.update({key: 'Unknown' for key in project.derived_all_input_schema})
-    # data types from config
-    data_types.update(project.data_types.items())
 
     # remove $undefined$ if there is one type at least in labeling config, because it will be resolved automatically
     if len(project.data_types) > 0:
         data_types.pop(settings.UPLOAD_DATA_UNDEFINED_NAME, None)
 
-    for key, data_type in list(data_types.items())[::-1]:  # make data types from labeling config first
+    for key, data_type in list(data_types.items()):  # make data types from labeling config first
         column = {
             'id': key,
             'title': key if key != settings.UPLOAD_DATA_UNDEFINED_NAME else 'data',
@@ -106,7 +105,7 @@ def get_all_columns(project):
             'title': "Cancelled",
             'type': "Number",
             'target': 'tasks',
-            'help': 'Number of cancelled (skipped) completions',
+            'help': 'Total cancelled (skipped) completions',
             'visibility_defaults': {
                 'explore': True,
                 'labeling': False
@@ -124,6 +123,17 @@ def get_all_columns(project):
             }
         },
         {
+            'id': 'completions_results',
+            'title': "Completions results",
+            'type': "String",
+            'target': 'tasks',
+            'help': 'Completion results stacked over all completions',
+            'visibility_defaults': {
+                'explore': False,
+                'labeling': False
+            }
+        },
+        {
             'id': 'predictions_score',
             'title': "Predictions score",
             'type': "Number",
@@ -135,11 +145,11 @@ def get_all_columns(project):
             }
         },
         {
-            'id': 'completions_results',
-            'title': "Results",
+            'id': 'predictions_results',
+            'title': "Predictions results",
             'type': "String",
             'target': 'tasks',
-            'help': 'Completion results stacked over all completions',
+            'help': 'Prediction results stacked over all predictions',
             'visibility_defaults': {
                 'explore': False,
                 'labeling': False
@@ -305,18 +315,21 @@ def load_task(project, task_id, params, resolve_uri=False):
     task['completed_at'] = completed_at
 
     # completion results aggregations over all completions
-    completions = task.get('completions', None)
-    if completions:
-        task['completions_results'] = json.dumps([completion.get('result', []) for completion in completions])
+    completions = task.get('completions', [])
+    if len(completions) > 0:
+        task['completions_results'] = json.dumps([item.get('result', []) for item in completions])
     else:
         task['completions_results'] = ''
 
     # prediction score
     predictions = task.get('predictions', [])
     if len(predictions) > 0:
+        task['predictions_results'] = json.dumps([item.get('result', []) for item in predictions])
         scores = [p['score'] for p in predictions if 'score' in p]
         if scores:
             task['prediction_scores'] = sum(scores) / len(scores)
+    else:
+        task['predictions_results'] = ''
 
     # aggregations
     task['total_completions'] = len(task.get('completions', []))
@@ -469,7 +482,7 @@ def order_tasks(params, tasks):
                                         DirectionSwitch(x.get('completed_at', None), False)))
     # another orderings
     else:
-        ordered = sorted(tasks, key=lambda x: (DirectionSwitch(resolve_task_field(x, order), not ascending)))
+        ordered = sorted(tasks, key=lambda x: DirectionSwitch(resolve_task_field(x, order), not ascending))
 
     return ordered
 
@@ -529,11 +542,13 @@ def prepare_tasks(project, params):
     """
     import time
     points = [(time.time(), 'start')]
-
+    # this option helps to avoid a total request for tasks and completions from storage (huge speed up for s3/gcs)
+    first_page_full_render = project.config.get('first_page_full_render', True)
     page, page_size = params.page, params.page_size
 
     # use max count to speed up evaluation of tasks without filters and ordering
-    full_render = check_filters_enabled(params) or check_order_enabled(params) or page <= 1 or page_size <= 0
+    full_render = check_filters_enabled(params) or check_order_enabled(params)
+    full_render |= (page <= 1 if first_page_full_render else page < 1) or page_size <= 0
     task_range = None if full_render else ((page-1) * page_size, page * page_size)
 
     # load all tasks from db with some aggregations over completions

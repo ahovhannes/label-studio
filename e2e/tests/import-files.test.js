@@ -7,8 +7,6 @@ Before(I => I.reset())
 Scenario("Import images from list.txt", async (I) => {
   I.amOnPage("/")
   I.see("Welcome to")
-  I.seeNumberOfElements(locate("a").withText("Import"), 2)
-  // top menu item is hidden during onboarding
   I.seeNumberOfVisibleElements(locate("a").withText("Import"), 1)
   I.click(locate("a.button").withText("Import"))
   I.waitInUrl("/import")
@@ -27,7 +25,7 @@ Scenario("Import images from list.txt", async (I) => {
   I.see("Tasks: 4 / 4")
   // images have no type yet, so no thumbnails are displayed, click just somewhere
   I.click(".select-row + div")
-  I.see("Labeling is not configured")
+  I.see("Labeling is not yet fully configured")
   I.click("Go to setup")
 
   I.say("Config setup")
@@ -46,7 +44,7 @@ Scenario("Import images from list.txt", async (I) => {
   I.see("Regions (0)")
   I.click("Skip")
   // skipped icon in completions list
-  I.seeElement("[aria-label=forward]")
+  I.seeElement("[aria-label=stop]")
   // completion date are filled in
   const completed = await I.grabTextFrom(".table-row > div:nth-child(3)")
   // there are 4 rows so array is returned

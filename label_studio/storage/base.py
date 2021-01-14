@@ -152,9 +152,7 @@ class CloudStorageForm(BaseStorageForm):
     regex = StringField('Regex', [IsValidRegex()], description='File filter by regex, example: .* (If not specified, all files will be skipped)')  # noqa
     # data_key = StringField('Data key', [Optional()], description='Task tag key from your label config')
     use_blob_urls = BooleanField('Use BLOBs URLs', default=True,
-                                 description='Interpret each bucket object as resource file (jpg, mp3, txt, etc).<br>'
-                                             'Otherwise bucket objects will be interpreted as tasks '
-                                             'in Label Studio JSON format')
+                                 description='Treat every bucket object as a source file. If unchecked, Label Studio treats every bucket object as a JSON-formatted task.')
     bound_params = dict(
         prefix='prefix',
         regex='regex',
@@ -172,7 +170,7 @@ class CloudStorage(BaseStorage):
 
     def __init__(
         self, prefix=None, regex=None, create_local_copy=True, use_blob_urls=True, data_key=None,
-        sync_in_thread=True, **kwargs
+        sync_in_thread=True, presign=True, **kwargs
     ):
         super(CloudStorage, self).__init__(**kwargs)
         self.prefix = prefix or ''
@@ -188,6 +186,7 @@ class CloudStorage(BaseStorage):
         self.use_blob_urls = use_blob_urls
         self.data_key = data_key or Settings.UPLOAD_DATA_UNDEFINED_NAME
         self.sync_in_thread = sync_in_thread
+        self.presign = presign
 
         self.client = self._get_client()
         self.validate_connection()
